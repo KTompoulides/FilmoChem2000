@@ -12,20 +12,22 @@
 #define PUMP 2
 
 
-float chemATemp,chemBTemp;
+float chemATemp,chemBTemp,waterTemp; 
 int curMenu = 0;
 
-float waterTemp;
 float maxTempVariation = 0.4;
 int start;
 
-uint8_t sensor1[8] = {0x28, 0x80, 0xD6, 0x3A, 0x01, 0x21, 0x0A, 0xB5}; 
+uint8_t sensor1[8] = {0x28, 0x80, 0xD6, 0x3A, 0x01, 0x21, 0x0A, 0xB5}; //sensor address
 uint8_t sensor2[8] ={0x28, 0x28, 0x79, 0x43, 0x01, 0x21, 0x0A, 0x2F};
 uint8_t sensor3[8] ={0x28, 0x45, 0xA6, 0x75, 0xD0, 0x01, 0x3C, 0xC6};
+   
+
 
 OneWire oneWire(7);
 DallasTemperature sensors(&oneWire);
 
+//startup logo
 const unsigned char filmochem_bmp [] PROGMEM ={
 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -100,6 +102,7 @@ Adafruit_SH1107 display = Adafruit_SH1107(64, 128,OLED_MOSI, OLED_CLK, OLED_DC, 
 void setup() {
 
   Serial.begin(9600);
+  Serial.println("START");
   pinMode(HEATER,OUTPUT);
   pinMode(PUMP,OUTPUT);
   pinMode(5,OUTPUT);
@@ -120,25 +123,41 @@ void setup() {
   display.display();
   
   
-  delay(10000);
+  delay(5000);
   displayC41();
 
 }
 
 void displayCurrentStatus(){
-  display.clearDisplay();
-  display.setCursor(0,0);
-  display.setTextSize(1);
-  display.print("***Current Status***\nWater temp:");
-  display.print(waterTemp);
-  display.print(" C \nChem A temp:");
-  display.print(chemATemp);
-  display.print(" C \nChem B temp: ");
-  display.print(chemBTemp);
-  display.println(" C");
-  display.println(" \n \n \n<- Select  Process ->");
-  display.display();
-  curMenu=0;
+  if(waterTemp == -127){
+    display.clearDisplay();
+    display.setCursor(0,0);
+    display.setTextSize(2);
+    display.print("SENSOR \nERROR!");
+    display.invertDisplay(1);
+    digitalWrite(5,LOW);
+    digitalWrite(6,LOW);
+    delay(200);
+    display.invertDisplay(0);
+    digitalWrite(5,HIGH);
+    digitalWrite(6,HIGH);
+    display.display();
+  }
+  else{
+    display.clearDisplay();
+    display.setCursor(0,0);
+    display.setTextSize(1);
+    display.print("***Current Status***\nWater temp:");
+    display.print(waterTemp);
+    display.print(" C \nChem A temp:");
+    display.print(chemATemp);
+    display.print(" C \nChem B temp: ");
+    display.print(chemBTemp);
+    display.println(" C");
+    display.println(" \n \n \nMaintaining Set Temp");
+    display.display();
+  }
+  
 
   
 }
@@ -171,28 +190,17 @@ void displayE6(){
 }
 
 void startWaterBath(int targetTemp){
-  display.clearDisplay();
-  display.setCursor(0,0);
-  display.setTextSize(2);
-  delay(2000);
-  display.clearDisplay();
-  display.setCursor(0,0);
-  display.setTextSize(2);
-  display.println("***FAST***");
-  display.println("*HEATING*");
-  display.display();
-  delay(2000);
-  display.setContrast(0);
-  //fastHeat();
+
+  digitalWrite(5,HIGH);
+  digitalWrite(PUMP,LOW);
   while(true){
-      delay(1000);
+      delay(500);
+      sensors.requestTemperatures(); 
       waterTemp = sensors.getTempC(sensor3);
       chemATemp = sensors.getTempC(sensor1);
       chemBTemp = sensors.getTempC(sensor2);
       displayCurrentStatus();
-      digitalWrite(PUMP,LOW);
-      digitalWrite(5,HIGH);
-      sensors.requestTemperatures(); 
+
       if(waterTemp < targetTemp - maxTempVariation){
         digitalWrite(HEATER,LOW);
         digitalWrite(6,HIGH);
@@ -207,29 +215,12 @@ void startWaterBath(int targetTemp){
   }
 }
 
-void fastHeat(){
-  start = (int) millis()/1000;
-  waterTemp = sensors.getTempC(sensor3);
-  chemATemp = sensors.getTempC(sensor1);
-  chemBTemp = sensors.getTempC(sensor2);
-
-
-
-  while((int) millis/1000 < 900){
-    displayCurrentStatus();
-    delay(750);
-    if(waterTemp < 49.5) digitalWrite(HEATER,HIGH);
-    else if(waterTemp > 50.2) digitalWrite(HEATER,LOW);
-    
-  }
-}
-
 
 
 void loop() {
   delay(100);
   int value = analogRead(A0);
-
+  
   //down 239-249
   //up 415-425
   //left 695-705
@@ -258,7 +249,6 @@ void loop() {
       displayC41();
       return;
     }
-    if(curMenu==1 || curMenu==2) displayCurrentStatus();
    
   }
    if(value>814 && value<824){ //right
@@ -266,15 +256,13 @@ void loop() {
       displayC41();
       return;
     }
-    
-    if(curMenu==1 || curMenu==2) displayCurrentStatus();
 
   }
    if(value>1010 && value<1024 && curMenu==1){ //center
     display.invertDisplay(1);
     delay(300);
     display.invertDisplay(0);
-    startWaterBath(30);
+    startWaterBath(39);
     }
 
     
