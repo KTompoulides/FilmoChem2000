@@ -10,14 +10,15 @@
 #define OLED_RESET 9 //white
 #define HEATER 4
 #define PUMP 2
+#define BUZZER 3
 
 
 float chemATemp,chemBTemp,waterTemp; 
 int curMenu = 0;
 
 float maxTempVariation = 0.4;
-int start;
-
+int i = 0 ;
+bool reverse = false;
 uint8_t sensor1[8] = {0x28, 0x80, 0xD6, 0x3A, 0x01, 0x21, 0x0A, 0xB5}; //sensor address
 uint8_t sensor2[8] ={0x28, 0x28, 0x79, 0x43, 0x01, 0x21, 0x0A, 0x2F};
 uint8_t sensor3[8] ={0x28, 0x45, 0xA6, 0x75, 0xD0, 0x01, 0x3C, 0xC6};
@@ -107,10 +108,10 @@ void setup() {
   pinMode(PUMP,OUTPUT);
   pinMode(5,OUTPUT);
   pinMode(6,OUTPUT);
+  pinMode(BUZZER,OUTPUT);
   digitalWrite(HEATER,HIGH);
   digitalWrite(PUMP,HIGH);
 
-  //display.setContrast (0); // dim display
 
   // Start OLED
   display.begin(0, true); // we dont use the i2c address but we will reset!
@@ -124,73 +125,73 @@ void setup() {
   
   
   delay(5000);
-  displayC41();
+  displayProcess("   C-41");
+  curMenu = 1;
+
 
 }
 
 void displayCurrentStatus(){
+  display.clearDisplay();
+  display.setCursor(0,0);
+  
+  if(!reverse && i<110){
+    i=i+10;
+  }
+  else if(reverse && i<=110){
+    i=i-10;
+  }
+  if(i == 110){
+    reverse = true;
+  }
+  else if(i == 0){
+    reverse = false;
+  }
+  
   if(waterTemp == -127){
-    display.clearDisplay();
-    display.setCursor(0,0);
     display.setTextSize(2);
-    display.print("SENSOR \nERROR!");
+    display.print("WATER \nSENSOR \nERROR!");
     display.invertDisplay(1);
     digitalWrite(5,LOW);
     digitalWrite(6,LOW);
+    tone(BUZZER,900,100);
     delay(200);
     display.invertDisplay(0);
     digitalWrite(5,HIGH);
     digitalWrite(6,HIGH);
-    display.display();
+    tone(BUZZER,700,100);
   }
   else{
-    display.clearDisplay();
-    display.setCursor(0,0);
     display.setTextSize(1);
-    display.print("***Current Status***\nWater temp:");
+    display.print("--- Sensor values ---\n\nWater  temp:  ");
     display.print(waterTemp);
-    display.print(" C \nChem A temp:");
+    display.print(" C \nChem A temp:  ");
     display.print(chemATemp);
-    display.print(" C \nChem B temp: ");
+    display.print(" C \nChem B temp:  ");
     display.print(chemBTemp);
-    display.println(" C");
-    display.println(" \n \n \nMaintaining Set Temp");
-    display.display();
+    display.print(" C");
+    display.setCursor(i,58);
+    display.println("---");
   }
-  
+   display.display();
 
   
 }
-
-void displayC41(){
+void displayProcess(char* process){
   display.clearDisplay();
   display.setCursor(0,0);
-  display.println("**Process Selection**\n\n");
-  display.setTextSize(2);
-  display.println("   C-41");
   display.setTextSize(1);
-  display.println("\n \n<-   Cur. Status   ->");
+  display.println("Sel. process UP/DOWN\n\n");
+  display.setTextSize(2);
+  display.println(process);
   display.display();
-  curMenu=1;
 
   
 }
 
-
-void displayE6(){
-  display.clearDisplay();
-  display.setCursor(0,0);
-  display.println("**Process Selection**\n\n");
-  display.setTextSize(2);
-  display.println("    E6");
-  display.setTextSize(1);
-  display.println("\n \n<-   Cur. Status   ->");
-  display.display();
-  curMenu=2;
-}
 
 void startWaterBath(int targetTemp){
-
+  //tone(BUZZER,800,150);
   digitalWrite(5,HIGH);
   digitalWrite(PUMP,LOW);
   while(true){
@@ -201,7 +202,7 @@ void startWaterBath(int targetTemp){
       chemBTemp = sensors.getTempC(sensor2);
       displayCurrentStatus();
 
-      if(waterTemp < targetTemp - maxTempVariation){
+      if(waterTemp!=-127 && (waterTemp < targetTemp - maxTempVariation)){
         digitalWrite(HEATER,LOW);
         digitalWrite(6,HIGH);
       }
@@ -211,7 +212,6 @@ void startWaterBath(int targetTemp){
         digitalWrite(HEATER,HIGH);
         digitalWrite(6,LOW);
       }
-      
   }
 }
 
@@ -227,37 +227,32 @@ void loop() {
   //right 814-824;
   //center 1010-1024
 
+
   if(value>239 && value<249){ //down
     if(curMenu==1) {
-      displayE6();
+      displayProcess("   E-6");
+      curMenu = 2;
       return;
     }
-    if(curMenu==2) displayC41();
+    displayProcess("   C-41");
+    curMenu = 1;
     
   }
+  
   else if(value>415 && value<425){ //up
     if(curMenu==1) {
-      displayE6();
+      displayProcess("   E-6");
+      curMenu = 2;
       return;
     }
     
-    if(curMenu==2) displayC41();
+    displayProcess("   C-41");
+    curMenu = 1;
     
   }
-   else if(value>695 && value<705){ //left
-    if(curMenu==0) {
-      displayC41();
-      return;
-    }
-   
-  }
-   if(value>814 && value<824){ //right
-    if(curMenu==0){
-      displayC41();
-      return;
-    }
 
-  }
+  
+
    if(value>1010 && value<1024 && curMenu==1){ //center
     display.invertDisplay(1);
     delay(300);
